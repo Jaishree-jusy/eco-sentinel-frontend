@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --color-canopy-950: #08241a;
+  --color-canopy-900: #0d2f22;
+  --color-canopy-800: #123d2c;
+  --color-canopy-700: #1a5038;
+  --color-canopy-600: #226347;
+  --color-canopy-500: #2c7a56;
+  --color-canopy-400: #3f9c70;
+  --color-canopy-300: #6bbd93;
+  --color-canopy-200: #a6dcc0;
+  --color-canopy-100: #d8f0e3;
+  --color-canopy-50:  #f0f9f4;
+
+  --color-soil-900: #241c14;
+  --color-soil-700: #4a3b28;
+
+  --color-sand-50: #f8f7f2;
+  --color-sand-100: #f2f0e8;
+  --color-sand-200: #e7e3d6;
+
+  --color-alert-critical: #c22a2a;
+  --color-alert-critical-bg: #fbe9e9;
+  --color-alert-moderate: #c17a1e;
+  --color-alert-moderate-bg: #fbf0dd;
+  --color-alert-mild: #b79a1e;
+  --color-alert-mild-bg: #faf6dc;
+  --color-alert-verified: #1f7a4d;
+  --color-alert-verified-bg: #e4f5ec;
+  --color-alert-info: #2456a6;
+  --color-alert-info-bg: #e7eefb;
+  --color-alert-blockchain: #6d3fa0;
+  --color-alert-blockchain-bg: #f1e9f8;
+  --color-alert-unknown: #62666b;
+  --color-alert-unknown-bg: #eceeef;
+
+  --font-display: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-canopy-950);
+  background-color: var(--color-sand-50);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #dfe6df;
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--color-canopy-300);
+  color: var(--color-canopy-950);
+}
+
+.thin-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: var(--color-canopy-200); border-radius: 4px; }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
