@@ -73,9 +73,105 @@ const outsideAlerts: OutsideForestAlert[] = outsideCandidates.slice(0, 60).map((
   };
 });
 
-export const MOCK_ALERTS: Alert[] = [...insideAlerts, ...outsideAlerts].sort(
-  (a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime()
+// ---------------------------------------------------------------------------
+// DEMO ALERTS for other cities and states (placeholders, not real detections)
+// ---------------------------------------------------------------------------
+const demoRand = mulberry32(777);
+
+interface DemoCity {
+  region: string;
+  division: string;
+  lat: number;
+  lon: number;
+  inside: number;
+  outside: number;
+}
+
+const DEMO_CITIES: DemoCity[] = [
+  { region: 'Bengaluru (Bangalore)', division: 'Bengaluru', lat: 12.9716, lon: 77.5946, inside: 14, outside: 5 },
+  { region: 'Mysuru (Mysore)', division: 'Mysuru', lat: 12.2958, lon: 76.6394, inside: 5, outside: 2 },
+  { region: 'Hubballi-Dharwad', division: 'Hubballi', lat: 15.3647, lon: 75.124, inside: 4, outside: 2 },
+  { region: 'Belagavi (Belgaum)', division: 'Belagavi', lat: 15.8497, lon: 74.4977, inside: 4, outside: 1 },
+  { region: 'Hassan', division: 'Hassan', lat: 13.0068, lon: 76.1004, inside: 3, outside: 1 },
+  { region: 'Shivamogga (Shimoga)', division: 'Shivamogga', lat: 13.9299, lon: 75.5681, inside: 3, outside: 1 },
+  
+ 
+];
+
+const SEVERITIES = ['Severe', 'Moderate', 'Mild', 'Unknown'] as InsideForestAlert['severityLevel'][];
+
+let demoInCounter = 10000;
+let demoOutCounter = 10000;
+
+function demoDate(): string {
+  const day = 20 + Math.floor(demoRand() * 30); // 20 Aug .. 18 Sep 2025
+  const date = new Date(Date.UTC(2025, 7, day));
+  return date.toISOString().slice(0, 10);
+}
+
+function demoPolygonId(n: number): string {
+  if (insideCandidates.length > 0) {
+    return insideCandidates[n % insideCandidates.length].polygonId;
+  }
+  return `PLY-DEMO-${n}`;
+}
+
+const demoInsideAlerts: InsideForestAlert[] = DEMO_CITIES.flatMap((city) =>
+  Array.from({ length: city.inside }, () => {
+    demoInCounter += 1;
+    const conf = Math.round((0.45 + demoRand() * 0.5) * 1000) / 1000;
+    const severity = rngPick(demoRand, SEVERITIES);
+    const legality = rngPick(demoRand, LEGALITY_OPTIONS);
+    return {
+      alertId: `ALT-IN-${String(demoInCounter).padStart(5, '0')}`,
+      polygonId: demoPolygonId(demoInCounter),
+      detectedAt: demoDate(),
+      lat: city.lat + (demoRand() - 0.5) * 0.2,
+      lon: city.lon + (demoRand() - 0.5) * 0.2,
+      areaLostHa: Math.round((0.3 + demoRand() * 5) * 100) / 100,
+      region: city.region,
+      division: city.division,
+      mlConfidence: conf,
+      status: rngPick(demoRand, STATUS_POOL),
+      priority: priorityFor(conf, severity),
+      branch: 'inside-forest',
+      severityLevel: severity,
+      detectionClass: 'Forest-loss (Random Forest)',
+      legalityStatus: legality,
+      matchedPermitId: legality === 'Authorization found' ? `PMT-D${demoInCounter}` : null,
+      finalAlertCategory:
+        legality === 'Authorization found' ? 'Authorized clearing' : 'Requires field verification',
+    } as InsideForestAlert;
+  })
 );
+
+const demoOutsideAlerts: OutsideForestAlert[] = DEMO_CITIES.flatMap((city) =>
+  Array.from({ length: city.outside }, () => {
+    demoOutCounter += 1;
+    const conf = Math.round((0.45 + demoRand() * 0.5) * 1000) / 1000;
+    return {
+      alertId: `ALT-OUT-${String(demoOutCounter).padStart(5, '0')}`,
+      polygonId: demoPolygonId(demoOutCounter),
+      detectedAt: demoDate(),
+      lat: city.lat + (demoRand() - 0.5) * 0.2,
+      lon: city.lon + (demoRand() - 0.5) * 0.2,
+      areaLostHa: Math.round((0.3 + demoRand() * 4) * 100) / 100,
+      region: city.region,
+      mlConfidence: conf,
+      status: rngPick(demoRand, STATUS_POOL),
+      priority: priorityFor(conf, 'Unknown'),
+      branch: 'outside-forest',
+      areaType: rngPick(demoRand, OUTSIDE_AREA_TYPES),
+    } as OutsideForestAlert;
+  })
+);
+
+export const MOCK_ALERTS: Alert[] = [
+  ...insideAlerts,
+  ...outsideAlerts,
+  ...demoInsideAlerts,
+  ...demoOutsideAlerts,
+].sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
 
 export function getAlertById(id: string): Alert | undefined {
   return MOCK_ALERTS.find((a) => a.alertId === id);

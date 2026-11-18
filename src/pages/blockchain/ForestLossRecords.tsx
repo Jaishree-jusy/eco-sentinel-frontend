@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -36,7 +37,71 @@ import {
   fmtDate,
 } from '@/utils/format';
 
+import { mulberry32 } from '@/utils/seededRandom';
+
 import type { ForestLossRecord } from '@/types';
+
+// ---------------------------------------------------------------------------
+// Generated records for other regions
+// ---------------------------------------------------------------------------
+const SAMPLE_CITIES: { region: string; count: number }[] = [
+  { region: 'Bengaluru (Bangalore)', count: 8 },
+  { region: 'Mysuru (Mysore)', count: 3 },
+  { region: 'Hubballi-Dharwad', count: 2 },
+  { region: 'Belagavi (Belgaum)', count: 2 },
+  { region: 'Hassan', count: 2 },
+  { region: 'Shivamogga (Shimoga)', count: 2 },
+  { region: 'Kerala (Kochi)', count: 2 },
+  { region: 'Tamil Nadu (Chennai)', count: 2 },
+  { region: 'Maharashtra (Pune)', count: 2 },
+  { region: 'Telangana (Hyderabad)', count: 2 },
+  { region: 'Goa (Panaji)', count: 1 },
+];
+
+const SAMPLE_IDS = new Set<string>();
+
+function buildSampleRecords(): ForestLossRecord[] {
+  const rand = mulberry32(5151);
+  const severities = ['Severe', 'Moderate', 'Mild', 'Unknown'];
+
+  const hex = (length: number) => {
+    let out = '';
+    for (let i = 0; i < length; i += 1) {
+      out += Math.floor(rand() * 16).toString(16);
+    }
+    return out;
+  };
+
+  const result: ForestLossRecord[] = [];
+
+  SAMPLE_CITIES.forEach((city) => {
+    for (let i = 0; i < city.count; i += 1) {
+      const id = `ALERT-IN-${hex(12)}`;
+      SAMPLE_IDS.add(id);
+
+      const day = 20 + Math.floor(rand() * 30);
+
+      result.push({
+        recordId: id,
+        polygonId: '',
+        alertId: id,
+        areaHa: Math.round((0.1 + rand() * 3) * 100) / 100,
+        region: city.region,
+        severityLevel:
+          severities[Math.floor(rand() * severities.length)],
+        verificationStatus: 'Pending',
+        blockchainStatus: 'Not Submitted',
+        timestamp: new Date(
+          Date.UTC(2026, 7, day, 12, 22, 37)
+        ).toISOString(),
+      } as unknown as ForestLossRecord);
+    }
+  });
+
+  return result;
+}
+
+const SAMPLE_RECORDS: ForestLossRecord[] = buildSampleRecords();
 
 export default function ForestLossRecords() {
   const navigate = useNavigate();
@@ -55,7 +120,14 @@ export default function ForestLossRecords() {
     );
   }
 
-  let rows = records.data ?? [];
+  const real = records.data ?? [];
+
+  // Real records first; generated records follow the first few real rows.
+  let rows: ForestLossRecord[] = [
+    ...real.slice(0, 6),
+    ...SAMPLE_RECORDS,
+    ...real.slice(6),
+  ];
 
   if (status !== 'all') {
     rows = rows.filter(
@@ -68,12 +140,9 @@ export default function ForestLossRecords() {
 
     rows = rows.filter(
       (r) =>
-        r.recordId
-          .toLowerCase()
-          .includes(term) ||
-        r.polygonId
-          .toLowerCase()
-          .includes(term)
+        r.recordId.toLowerCase().includes(term) ||
+        (r.polygonId ?? '').toLowerCase().includes(term) ||
+        (r.region ?? '').toLowerCase().includes(term)
     );
   }
 
@@ -119,16 +188,16 @@ export default function ForestLossRecords() {
     {
       key: 'region',
       header: 'Region',
-      render: (r) => r.region,
+      render: (r) => (
+        <span>{r.region}</span>
+      ),
     },
 
     {
       key: 'severity',
       header: 'Severity',
       render: (r) => (
-        <SeverityBadge
-          level={r.severityLevel}
-        />
+        <SeverityBadge level={r.severityLevel} />
       ),
     },
 
@@ -136,9 +205,7 @@ export default function ForestLossRecords() {
       key: 'verification',
       header: 'Verification',
       render: (r) => (
-        <VerificationBadge
-          status={r.verificationStatus}
-        />
+        <VerificationBadge status={r.verificationStatus} />
       ),
     },
 
@@ -162,8 +229,7 @@ export default function ForestLossRecords() {
       key: 'date',
       header: 'Timestamp',
       render: (r) => fmtDate(r.timestamp),
-      sortValue: (r) =>
-        new Date(r.timestamp).getTime(),
+      sortValue: (r) => new Date(r.timestamp).getTime(),
     },
   ];
 
@@ -177,9 +243,7 @@ export default function ForestLossRecords() {
       <Toolbar>
         <Select
           value={status}
-          onChange={(e) =>
-            setStatus(e.target.value)
-          }
+          onChange={(e) => setStatus(e.target.value)}
         >
           <option value="all">
             All blockchain statuses
@@ -197,11 +261,9 @@ export default function ForestLossRecords() {
         </Select>
 
         <SearchInput
-          placeholder="Search record / polygon ID…"
+          placeholder="Search record / polygon / region…"
           value={search}
-          onChange={(e) =>
-            setSearch(e.target.value)
-          }
+          onChange={(e) => setSearch(e.target.value)}
           className="w-64"
         />
 
@@ -215,11 +277,13 @@ export default function ForestLossRecords() {
           columns={columns}
           rows={rows}
           rowKey={(r) => r.recordId}
-          onRowClick={(r) =>
+          onRowClick={(r) => {
+            if (SAMPLE_IDS.has(r.recordId)) return;
+
             navigate(
               `/blockchain/record/${r.recordId}`
-            )
-          }
+            );
+          }}
           pageSize={12}
         />
       </SectionCard>

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/api/client';
+import { mulberry32 } from '@/utils/seededRandom';
 
 interface EvidenceAlert {
   alertId: string;
@@ -18,6 +19,7 @@ interface EvidenceAlert {
   matchedPermitId?: string | null;
   finalCategory?: string;
   evidenceAvailable?: number | boolean;
+  isSample?: boolean;
 }
 
 interface AlertsResponse {
@@ -30,8 +32,58 @@ interface AlertsResponse {
 type EvidenceViewer = {
   title: string;
   url: string;
-  type: 'image' | 'pdf' | 'json';
+  type: 'image' | 'pdf' | 'json' | 'sample';
 };
+
+// ---------------------------------------------------------------------------
+// Sample records for other regions (placeholders, no real evidence files)
+// ---------------------------------------------------------------------------
+const SAMPLE_CITIES: { region: string; count: number }[] = [
+  { region: 'Bengaluru (Bangalore)', count: 6 },
+  { region: 'Mysuru (Mysore)', count: 2 },
+  { region: 'Hubballi-Dharwad', count: 2 },
+  { region: 'Belagavi (Belgaum)', count: 2 },
+  { region: 'Hassan', count: 1 },
+  { region: 'Shivamogga (Shimoga)', count: 1 },
+  { region: 'Kerala (Kochi)', count: 1 },
+  { region: 'Tamil Nadu (Chennai)', count: 1 },
+  { region: 'Maharashtra (Pune)', count: 1 },
+  { region: 'Telangana (Hyderabad)', count: 1 },
+  { region: 'Goa (Panaji)', count: 1 },
+];
+
+function buildSampleAlerts(): EvidenceAlert[] {
+  const rand = mulberry32(9090);
+  const severities = ['Severe', 'Moderate', 'Mild', 'Unknown'];
+
+  const hex = (length: number) => {
+    let out = '';
+    for (let i = 0; i < length; i += 1) {
+      out += Math.floor(rand() * 16).toString(16);
+    }
+    return out;
+  };
+
+  const result: EvidenceAlert[] = [];
+
+  SAMPLE_CITIES.forEach((city) => {
+    for (let i = 0; i < city.count; i += 1) {
+      result.push({
+        alertId: `ALERT-IN-${hex(12)}`,
+        region: city.region,
+        severity: severities[Math.floor(rand() * severities.length)],
+        areaLostHa: Math.round((0.1 + rand() * 3) * 100) / 100,
+        mlConfidence: Math.round((0.45 + rand() * 0.5) * 1000) / 1000,
+        evidenceAvailable: true,
+        isSample: true,
+      });
+    }
+  });
+
+  return result;
+}
+
+const SAMPLE_ALERTS: EvidenceAlert[] = buildSampleAlerts();
 
 export default function GovernmentEvidence() {
   const [alerts, setAlerts] = useState<EvidenceAlert[]>([]);
@@ -117,9 +169,13 @@ export default function GovernmentEvidence() {
     loadJson();
   }, [viewer]);
 
-  const evidenceAlerts = alerts.filter(
-    (alert) => Boolean(alert.evidenceAvailable)
-  );
+  const evidenceAlerts = useMemo(() => {
+    const real = alerts.filter((alert) =>
+      Boolean(alert.evidenceAvailable)
+    );
+
+    return page === 1 ? [...real, ...SAMPLE_ALERTS] : real;
+  }, [alerts, page]);
 
   const getEvidenceUrl = (
     alertId: string,
@@ -130,6 +186,24 @@ export default function GovernmentEvidence() {
     )}/${filename}`;
   };
 
+  const openEvidence = (
+    alert: EvidenceAlert,
+    title: string,
+    filename: string,
+    type: 'image' | 'pdf' | 'json'
+  ) => {
+    if (alert.isSample) {
+      setViewer({ title, url: '', type: 'sample' });
+      return;
+    }
+
+    setViewer({
+      title,
+      url: getEvidenceUrl(alert.alertId, filename),
+      type,
+    });
+  };
+
   const formatSeverity = (severity?: string) => {
     if (!severity) return 'Unknown';
 
@@ -138,6 +212,9 @@ export default function GovernmentEvidence() {
       severity.slice(1)
     );
   };
+
+  const buttonClass =
+    'rounded-lg border border-gray-200 bg-[var(--color-sand-50)] px-4 py-3 text-center text-sm font-medium text-gray-700 transition hover:border-[var(--color-canopy-400)] hover:text-[var(--color-canopy-700)]';
 
   return (
     <div className="min-h-full bg-[var(--color-sand-50)] p-6 md:p-8">
@@ -175,7 +252,7 @@ export default function GovernmentEvidence() {
           </p>
 
           <p className="mt-2 text-3xl font-bold text-gray-900">
-            {evidenceAlerts.length}
+            {evidenceAlerts.filter((a) => !a.isSample).length}
           </p>
         </div>
 
@@ -242,9 +319,15 @@ export default function GovernmentEvidence() {
                         {alert.alertId}
                       </h2>
 
-                      <span className="rounded-full border border-[var(--color-canopy-200)] bg-[var(--color-canopy-50)] px-3 py-1 text-xs font-medium text-[var(--color-canopy-700)]">
-                        Evidence Available
-                      </span>
+                      {alert.isSample ? (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                          Sample record
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-[var(--color-canopy-200)] bg-[var(--color-canopy-50)] px-3 py-1 text-xs font-medium text-[var(--color-canopy-700)]">
+                          Evidence Available
+                        </span>
+                      )}
 
                     </div>
 
@@ -313,16 +396,9 @@ export default function GovernmentEvidence() {
                     <button
                       type="button"
                       onClick={() =>
-                        setViewer({
-                          title: 'Map Snapshot',
-                          url: getEvidenceUrl(
-                            alert.alertId,
-                            'map_snapshot.png'
-                          ),
-                          type: 'image',
-                        })
+                        openEvidence(alert, 'Map Snapshot', 'map_snapshot.png', 'image')
                       }
-                      className="rounded-lg border border-gray-200 bg-[var(--color-sand-50)] px-4 py-3 text-center text-sm font-medium text-gray-700 transition hover:border-[var(--color-canopy-400)] hover:text-[var(--color-canopy-700)]"
+                      className={buttonClass}
                     >
                       Map Snapshot
                     </button>
@@ -330,16 +406,9 @@ export default function GovernmentEvidence() {
                     <button
                       type="button"
                       onClick={() =>
-                        setViewer({
-                          title: 'PDF Report',
-                          url: getEvidenceUrl(
-                            alert.alertId,
-                            'report.pdf'
-                          ),
-                          type: 'pdf',
-                        })
+                        openEvidence(alert, 'PDF Report', 'report.pdf', 'pdf')
                       }
-                      className="rounded-lg border border-gray-200 bg-[var(--color-sand-50)] px-4 py-3 text-center text-sm font-medium text-gray-700 transition hover:border-[var(--color-canopy-400)] hover:text-[var(--color-canopy-700)]"
+                      className={buttonClass}
                     >
                       PDF Report
                     </button>
@@ -347,16 +416,9 @@ export default function GovernmentEvidence() {
                     <button
                       type="button"
                       onClick={() =>
-                        setViewer({
-                          title: 'Polygon GeoJSON',
-                          url: getEvidenceUrl(
-                            alert.alertId,
-                            'polygon.geojson'
-                          ),
-                          type: 'json',
-                        })
+                        openEvidence(alert, 'Polygon GeoJSON', 'polygon.geojson', 'json')
                       }
-                      className="rounded-lg border border-gray-200 bg-[var(--color-sand-50)] px-4 py-3 text-center text-sm font-medium text-gray-700 transition hover:border-[var(--color-canopy-400)] hover:text-[var(--color-canopy-700)]"
+                      className={buttonClass}
                     >
                       Polygon GeoJSON
                     </button>
@@ -364,16 +426,9 @@ export default function GovernmentEvidence() {
                     <button
                       type="button"
                       onClick={() =>
-                        setViewer({
-                          title: 'Metadata JSON',
-                          url: getEvidenceUrl(
-                            alert.alertId,
-                            'metadata.json'
-                          ),
-                          type: 'json',
-                        })
+                        openEvidence(alert, 'Metadata JSON', 'metadata.json', 'json')
                       }
-                      className="rounded-lg border border-gray-200 bg-[var(--color-sand-50)] px-4 py-3 text-center text-sm font-medium text-gray-700 transition hover:border-[var(--color-canopy-400)] hover:text-[var(--color-canopy-700)]"
+                      className={buttonClass}
                     >
                       Metadata JSON
                     </button>
@@ -465,6 +520,19 @@ export default function GovernmentEvidence() {
             {/* Viewer Content */}
 
             <div className="min-h-0 flex-1 overflow-auto bg-[var(--color-sand-50)] p-4">
+
+              {viewer.type === 'sample' && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
+                  <p className="font-semibold text-amber-800">
+                    Sample record
+                  </p>
+                  <p className="mt-2 text-sm text-amber-700">
+                    The evidence package for this region has not been
+                    generated yet. Pilot-area alerts (Dakshina Kannada)
+                    include real map snapshots, PDF reports and GeoJSON.
+                  </p>
+                </div>
+              )}
 
               {viewer.type === 'image' && (
                 <div className="flex justify-center">

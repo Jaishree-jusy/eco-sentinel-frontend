@@ -1,11 +1,13 @@
-
 import { useMemo, useState } from 'react';
 import {
   MapContainer,
   TileLayer,
   Polygon as LeafletPolygon,
+  Rectangle,
+  CircleMarker,
   Marker,
   Popup,
+  Tooltip,
   useMap,
 } from 'react-leaflet';
 import {
@@ -27,6 +29,35 @@ import { fmtHa, fmtPct, coord, cx } from '@/utils/format';
 import { Link } from 'react-router-dom';
 
 type ColorMode = 'severity' | 'forest' | 'confidence';
+
+const KARNATAKA_CENTER: [number, number] = [14.5, 76.0];
+
+const PILOT_BOUNDS: [[number, number], [number, number]] = [
+  [12.6, 74.75],
+  [13.0, 75.1],
+];
+
+interface DemoRegion {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+const DEMO_REGIONS: DemoRegion[] = [
+  { name: 'Bengaluru', lat: 12.9716, lon: 77.5946 },
+  { name: 'Mysuru', lat: 12.2958, lon: 76.6394 },
+  { name: 'Hassan', lat: 13.0068, lon: 76.1004 },
+  { name: 'Shivamogga', lat: 13.9299, lon: 75.5681 },
+  { name: 'Hubballi-Dharwad', lat: 15.3647, lon: 75.124 },
+  { name: 'Belagavi', lat: 15.8497, lon: 74.4977 },
+  { name: 'Ballari', lat: 15.1394, lon: 76.9214 },
+  { name: 'Kalaburagi', lat: 17.3297, lon: 76.8343 },
+  { name: 'Kochi (Kerala)', lat: 9.9312, lon: 76.2673 },
+  { name: 'Chennai (Tamil Nadu)', lat: 13.0827, lon: 80.2707 },
+  { name: 'Pune (Maharashtra)', lat: 18.5204, lon: 73.8567 },
+  { name: 'Hyderabad (Telangana)', lat: 17.385, lon: 78.4867 },
+  { name: 'Panaji (Goa)', lat: 15.4909, lon: 73.8278 },
+];
 
 interface GISMapProps {
   polygons?: PolygonT[];
@@ -77,7 +108,7 @@ export function GISMap({
   alerts = [],
   colorBy = 'severity',
   height = '480px',
-  center = STUDY_AREA_CENTER,
+  center = KARNATAKA_CENTER,
   zoom = 6,
   showLegend = true,
   showLayerControl = true,
@@ -93,6 +124,8 @@ export function GISMap({
     rf: true,
     alerts: true,
     admin: true,
+    pilot: true,
+    demo: true,
   });
   const [mode, setMode] = useState<ColorMode>(colorBy);
 
@@ -173,6 +206,60 @@ export function GISMap({
               : '&copy; OpenStreetMap contributors'
           }
         />
+
+        {layers.pilot && (
+          <Rectangle
+            bounds={PILOT_BOUNDS}
+            pathOptions={{
+              color: '#16a34a',
+              weight: 2.5,
+              fillColor: '#16a34a',
+              fillOpacity: 0.1,
+            }}
+          >
+            <Popup>
+              <div className="min-w-[190px] text-xs">
+                <p className="mb-1 font-semibold">
+                  Dakshina Kannada – pilot area
+                </p>
+                <p>Real Sentinel-2 satellite results</p>
+                <p>Alerts, evidence and blockchain records available</p>
+              </div>
+            </Popup>
+          </Rectangle>
+        )}
+
+        {layers.demo &&
+          DEMO_REGIONS.map((r) => (
+            <CircleMarker
+              key={r.name}
+              center={[r.lat, r.lon]}
+              radius={7}
+              pathOptions={{
+                color: '#f59e0b',
+                fillColor: '#f59e0b',
+                fillOpacity: 0.35,
+                weight: 2,
+                dashArray: '4 3',
+              }}
+            >
+              <Tooltip direction="top" offset={[0, -6]}>
+                {r.name}
+              </Tooltip>
+              <Popup>
+                <div className="min-w-[190px] text-xs">
+                  <p className="mb-1 font-semibold">{r.name}</p>
+                  <p className="font-semibold text-amber-700">
+                    DEMO MARKER
+                  </p>
+                  <p>
+                    Placeholder for a future monitored region. No real
+                    detections have been processed here yet.
+                  </p>
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
 
         {layers.polygons &&
           preparedPolygons.map(({ polygon: p, positions, color }) => (
@@ -305,6 +392,8 @@ export function GISMap({
             ['rf', 'RF predictions (amber)'],
             ['alerts', 'Alert markers'],
             ['admin', 'Admin boundaries (GADM)'],
+            ['pilot', 'Pilot area (live)'],
+            ['demo', 'Other regions (demo)'],
           ].map(([key, label]) => (
             <label key={key} className="mb-2 flex items-center gap-2">
               <input
@@ -367,7 +456,7 @@ export function GISMap({
       )}
 
       {showLegend && (
-        <div className="absolute bottom-3 left-3 z-[500] rounded-lg border border-gray-200 bg-white/95 p-2.5 text-[11px] shadow backdrop-blur">
+        <div className="absolute bottom-3 right-3 z-[500] rounded-lg border border-gray-200 bg-white/95 p-2.5 text-[11px] shadow backdrop-blur">
           {legendEntries.map(([label, color]) => (
             <div
               key={label}
@@ -383,6 +472,14 @@ export function GISMap({
           <div className="mt-1 flex items-center gap-1.5 border-t pt-1">
             <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
             RF prediction (unverified)
+          </div>
+          <div className="flex items-center gap-1.5 py-0.5">
+            <span className="h-2.5 w-2.5 rounded-sm border border-green-600 bg-green-100" />
+            Pilot area (live data)
+          </div>
+          <div className="flex items-center gap-1.5 py-0.5">
+            <span className="h-2.5 w-2.5 rounded-full border border-dashed border-amber-500 bg-amber-200" />
+            Demo region (no real data)
           </div>
         </div>
       )}

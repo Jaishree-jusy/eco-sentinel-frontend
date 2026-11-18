@@ -1,5 +1,7 @@
+
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/api/client';
+import { mulberry32 } from '@/utils/seededRandom';
 
 interface GovernmentAlert {
   alertId: string;
@@ -18,6 +20,7 @@ interface GovernmentAlert {
   evidenceAvailable: number | boolean;
   priority: string | null;
   status: string | null;
+  isDemo?: boolean;
 }
 
 interface AlertsResponse {
@@ -26,6 +29,83 @@ interface AlertsResponse {
   perPage: number;
   total: number;
 }
+
+// ---------------------------------------------------------------------------
+// Generated alerts for other cities and states
+// ---------------------------------------------------------------------------
+interface DemoCity {
+  region: string;
+  lat: number;
+  lon: number;
+  count: number;
+}
+
+const DEMO_CITIES: DemoCity[] = [
+  { region: 'Bengaluru (Bangalore)', lat: 12.9716, lon: 77.5946, count: 22 },
+  { region: 'Mysuru (Mysore)', lat: 12.2958, lon: 76.6394, count: 7 },
+  { region: 'Hubballi-Dharwad', lat: 15.3647, lon: 75.124, count: 5 },
+  { region: 'Belagavi (Belgaum)', lat: 15.8497, lon: 74.4977, count: 5 },
+  { region: 'Hassan', lat: 13.0068, lon: 76.1004, count: 4 },
+  { region: 'Shivamogga (Shimoga)', lat: 13.9299, lon: 75.5681, count: 4 },
+  { region: 'Kerala (Kochi)', lat: 9.9312, lon: 76.2673, count: 4 },
+  { region: 'Tamil Nadu (Chennai)', lat: 13.0827, lon: 80.2707, count: 4 },
+  { region: 'Maharashtra (Pune)', lat: 18.5204, lon: 73.8567, count: 4 },
+  { region: 'Telangana (Hyderabad)', lat: 17.385, lon: 78.4867, count: 4 },
+  { region: 'Goa (Panaji)', lat: 15.4909, lon: 73.8278, count: 3 },
+];
+
+const DEMO_SEVERITIES = ['Severe', 'Moderate', 'Mild', 'Unknown'];
+const DEMO_STATUSES = ['New', 'Under Review', 'Investigating', 'Verified'];
+
+function buildDemoAlerts(): GovernmentAlert[] {
+  const rand = mulberry32(4242);
+
+  const hex = (length: number) => {
+    let out = '';
+    for (let i = 0; i < length; i += 1) {
+      out += Math.floor(rand() * 16).toString(16);
+    }
+    return out;
+  };
+
+  const pick = <T,>(items: T[]): T =>
+    items[Math.floor(rand() * items.length)];
+
+  const result: GovernmentAlert[] = [];
+
+  DEMO_CITIES.forEach((city) => {
+    for (let i = 0; i < city.count; i += 1) {
+      const confidence = Math.round((0.45 + rand() * 0.5) * 1000) / 1000;
+      const severity = pick(DEMO_SEVERITIES);
+      const day = 20 + Math.floor(rand() * 30);
+      const detected = new Date(Date.UTC(2026, 7, day, 12, 22, 37));
+
+      result.push({
+        alertId: `ALERT-IN-${hex(12)}`,
+        polygonId: `LOSS-${hex(12)}`,
+        detectedAt: detected.toISOString(),
+        lat: city.lat + (rand() - 0.5) * 0.2,
+        lon: city.lon + (rand() - 0.5) * 0.2,
+        areaLostHa: Math.round((0.1 + rand() * 3) * 100) / 100,
+        severityLevel: severity,
+        region: city.region,
+        mlConfidence: confidence,
+        detectionClass: 'random_forest_deforestation',
+        legalityStatus: null,
+        matchedPermitId: null,
+        finalAlertCategory: null,
+        evidenceAvailable: rand() > 0.3,
+        priority: severity === 'Severe' ? 'High' : 'Medium',
+        status: pick(DEMO_STATUSES),
+        isDemo: true,
+      });
+    }
+  });
+
+  return result;
+}
+
+const DEMO_ALERTS: GovernmentAlert[] = buildDemoAlerts();
 
 export default function GovernmentAlerts() {
   const [alerts, setAlerts] = useState<GovernmentAlert[]>([]);
@@ -78,10 +158,21 @@ export default function GovernmentAlerts() {
     };
   }, [page]);
 
+  const filtersActive =
+    search.trim() !== '' ||
+    severityFilter !== 'all' ||
+    regionFilter !== 'all';
+
+  const pool = useMemo(
+    () =>
+      page === 1 || filtersActive ? [...alerts, ...DEMO_ALERTS] : alerts,
+    [alerts, page, filtersActive]
+  );
+
   const regions = useMemo(() => {
     return Array.from(
       new Set(
-        alerts
+        [...alerts, ...DEMO_ALERTS]
           .map((alert) => alert.region)
           .filter(Boolean)
       )
@@ -91,7 +182,7 @@ export default function GovernmentAlerts() {
   const filteredAlerts = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return alerts.filter((alert) => {
+    return pool.filter((alert) => {
       const matchesSearch =
         !query ||
         alert.alertId.toLowerCase().includes(query) ||
@@ -114,7 +205,7 @@ export default function GovernmentAlerts() {
       );
     });
   }, [
-    alerts,
+    pool,
     search,
     severityFilter,
     regionFilter,
@@ -275,7 +366,8 @@ export default function GovernmentAlerts() {
           </h2>
 
           <p className="mt-1 text-xs text-gray-400">
-            Real records from the Flask backend
+            Real records from the Flask backend, plus generated records
+            for other regions
           </p>
         </div>
 
@@ -298,29 +390,12 @@ export default function GovernmentAlerts() {
 
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
-                  <th className="px-5 py-4">
-                    Alert
-                  </th>
-
-                  <th className="px-5 py-4">
-                    Detection
-                  </th>
-
-                  <th className="px-5 py-4">
-                    Region
-                  </th>
-
-                  <th className="px-5 py-4">
-                    Area Lost
-                  </th>
-
-                  <th className="px-5 py-4">
-                    ML Confidence
-                  </th>
-
-                  <th className="px-5 py-4">
-                    Evidence
-                  </th>
+                  <th className="px-5 py-4">Alert</th>
+                  <th className="px-5 py-4">Detection</th>
+                  <th className="px-5 py-4">Region</th>
+                  <th className="px-5 py-4">Area Lost</th>
+                  <th className="px-5 py-4">ML Confidence</th>
+                  <th className="px-5 py-4">Evidence</th>
                 </tr>
               </thead>
 
@@ -357,7 +432,6 @@ export default function GovernmentAlerts() {
                         {alert.detectionClass ?? '—'}
                       </p>
 
-                      {/* SAFE coordinate rendering */}
                       {typeof alert.lat === 'number' &&
                         typeof alert.lon === 'number' && (
                           <p className="mt-1 text-xs text-gray-400">
